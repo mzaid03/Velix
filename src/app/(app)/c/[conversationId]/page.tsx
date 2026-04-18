@@ -28,6 +28,13 @@ export default async function ConversationPage({
 
   if (!membership) redirect("/inbox");
 
+  // Mark as read when opening the conversation.
+  await supabase
+    .from("conversation_members")
+    .update({ last_read_at: new Date().toISOString() })
+    .eq("conversation_id", conversationId)
+    .eq("user_id", user.id);
+
   const { data: otherMember } = await supabase
     .from("conversation_members")
     .select("user_id")

@@ -24,15 +24,20 @@ export default async function InboxPage() {
 
   const { data: memberships } = await supabase
     .from("conversation_members")
-    .select("conversation_id")
+    .select("conversation_id,last_read_at")
     .eq("user_id", user.id);
 
   const conversationIds = (memberships ?? []).map((m) => m.conversation_id);
+  const lastReadByConversation = new Map<string, string>();
+  for (const m of memberships ?? []) {
+    if (m.last_read_at) lastReadByConversation.set(m.conversation_id, m.last_read_at);
+  }
 
   let items: Array<{
     conversationId: string;
     other?: Profile;
     lastMessageAt?: string | null;
+    hasUnread?: boolean;
   }> = [];
 
   if (conversationIds.length) {
@@ -67,12 +72,40 @@ export default async function InboxPage() {
       lastByConversation.set(c.id, c.last_message_at);
     }
 
+    const { data: recentMessages } = await supabase
+      .from("messages")
+      .select("conversation_id,sender_id,created_at")
+      .in("conversation_id", conversationIds)
+      .order("created_at", { ascending: false })
+      .limit(200);
+
+    const latestByConversation = new Map<
+      string,
+      { sender_id: string; created_at: string }
+    >();
+    for (const msg of recentMessages ?? []) {
+      if (!latestByConversation.has(msg.conversation_id)) {
+        latestByConversation.set(msg.conversation_id, {
+          sender_id: msg.sender_id,
+          created_at: msg.created_at,
+        });
+      }
+    }
+
     items = conversationIds.map((conversationId) => {
       const otherId = otherByConversation.get(conversationId);
+      const latest = latestByConversation.get(conversationId);
+      const lastRead = lastReadByConversation.get(conversationId);
+      const hasUnread = Boolean(
+        latest &&
+          latest.sender_id !== user.id &&
+          (!lastRead || new Date(latest.created_at).getTime() > new Date(lastRead).getTime()),
+      );
       return {
         conversationId,
         other: otherId ? profileById.get(otherId) : undefined,
         lastMessageAt: lastByConversation.get(conversationId) ?? null,
+        hasUnread,
       };
     });
 
@@ -99,8 +132,13 @@ export default async function InboxPage() {
                   className="flex items-center justify-between rounded-lg border border-zinc-200 px-3 py-2 text-sm hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
                 >
                   <div className="flex flex-col">
-                    <span className="font-medium">
+                    <span className={item.hasUnread ? "font-semibold" : "font-medium"}>
                       {item.other?.username ?? "(unknown)"}
+                      {item.hasUnread ? (
+                        <span className="ml-2 inline-flex items-center rounded-full bg-indigo-600/10 px-2 py-0.5 text-[11px] font-semibold text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300">
+                          New
+                        </span>
+                      ) : null}
                     </span>
                     <span className="text-xs text-zinc-600 dark:text-zinc-400">
                       {item.lastMessageAt

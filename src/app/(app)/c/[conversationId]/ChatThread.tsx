@@ -35,6 +35,18 @@ export default function ChatThread({
   useEffect(() => {
     const supabase = createSupabaseBrowserClient();
 
+    const markAsRead = async () => {
+      try {
+        await supabase
+          .from("conversation_members")
+          .update({ last_read_at: new Date().toISOString() })
+          .eq("conversation_id", conversationId)
+          .eq("user_id", currentUserId);
+      } catch {
+        // ignore
+      }
+    };
+
     let channel: ReturnType<typeof supabase.channel> | null = null;
     let cancelled = false;
 
@@ -42,6 +54,9 @@ export default function ChatThread({
       // Ensure Realtime connection uses the authenticated session.
       await supabase.auth.getSession();
       if (cancelled) return;
+
+      // Opening the thread counts as reading.
+      void markAsRead();
 
       channel = supabase
         .channel(`messages:${conversationId}`)
@@ -59,6 +74,11 @@ export default function ChatThread({
               if (prev.some((m) => m.id === next.id)) return prev;
               return [...prev, next];
             });
+
+            // If we received a message while viewing, mark as read.
+            if (next.sender_id !== currentUserId) {
+              void markAsRead();
+            }
           },
         )
         .subscribe();
@@ -68,7 +88,7 @@ export default function ChatThread({
       cancelled = true;
       if (channel) supabase.removeChannel(channel);
     };
-  }, [conversationId]);
+  }, [conversationId, currentUserId]);
 
   useEffect(() => {
     if (!didSubmitRef.current) return;
