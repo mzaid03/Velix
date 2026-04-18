@@ -22,14 +22,31 @@ export default async function InboxPage() {
     return null;
   }
 
-  const { data: memberships } = await supabase
-    .from("conversation_members")
-    .select("conversation_id,last_read_at")
-    .eq("user_id", user.id);
+  // Backwards-compatible: if the unread migration hasn't been run yet,
+  // conversation_members.last_read_at won't exist.
+  let unreadSupported = true;
+  let memberships: Array<{ conversation_id: string; last_read_at?: string | null }> = [];
 
-  const conversationIds = (memberships ?? []).map((m) => m.conversation_id);
+  const { data: membershipsWithRead, error: membershipsWithReadError } =
+    await supabase
+      .from("conversation_members")
+      .select("conversation_id,last_read_at")
+      .eq("user_id", user.id);
+
+  if (membershipsWithReadError) {
+    unreadSupported = false;
+    const { data: membershipsBasic } = await supabase
+      .from("conversation_members")
+      .select("conversation_id")
+      .eq("user_id", user.id);
+    memberships = (membershipsBasic ?? []) as typeof memberships;
+  } else {
+    memberships = (membershipsWithRead ?? []) as typeof memberships;
+  }
+
+  const conversationIds = memberships.map((m) => m.conversation_id);
   const lastReadByConversation = new Map<string, string>();
-  for (const m of memberships ?? []) {
+  for (const m of memberships) {
     if (m.last_read_at) lastReadByConversation.set(m.conversation_id, m.last_read_at);
   }
 
@@ -96,11 +113,15 @@ export default async function InboxPage() {
       const otherId = otherByConversation.get(conversationId);
       const latest = latestByConversation.get(conversationId);
       const lastRead = lastReadByConversation.get(conversationId);
-      const hasUnread = Boolean(
-        latest &&
-          latest.sender_id !== user.id &&
-          (!lastRead || new Date(latest.created_at).getTime() > new Date(lastRead).getTime()),
-      );
+      const hasUnread =
+        unreadSupported &&
+        Boolean(
+          latest &&
+            latest.sender_id !== user.id &&
+            (!lastRead ||
+              new Date(latest.created_at).getTime() >
+                new Date(lastRead).getTime()),
+        );
       return {
         conversationId,
         other: otherId ? profileById.get(otherId) : undefined,
