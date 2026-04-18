@@ -74,14 +74,13 @@ export default function LoginPage() {
         ) : null}
 
         <button
-          className="inline-flex h-10 items-center justify-center rounded-md bg-zinc-900 px-4 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50 dark:bg-zinc-50 dark:text-zinc-950 dark:hover:bg-zinc-200"
+          className="inline-flex h-10 items-center justify-center rounded-md bg-indigo-600 px-4 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50 dark:bg-indigo-500 dark:hover:bg-indigo-400"
           type="submit"
           disabled={loading}
         >
           {loading ? "Logging in…" : "Log in"}
         </button>
       </form>
-          className="inline-flex h-10 items-center justify-center rounded-md bg-indigo-600 px-4 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50 dark:bg-indigo-500 dark:hover:bg-indigo-400"
       <p className="text-sm text-zinc-600 dark:text-zinc-400">
         Don’t have an account?{" "}
         <Link className="text-zinc-950 underline dark:text-zinc-50" href="/signup">
